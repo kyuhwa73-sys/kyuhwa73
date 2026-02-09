@@ -1,0 +1,403 @@
+/* ─── 전역 리셋 & 기본 스타일 ──────────────────────────────── */
+:root {
+  font-family: 'Pretendard', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #e2e8f0;
+  background-color: #0f172a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── 에디터 레이아웃 ───────────────────────────────────────── */
+.mindmap-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+}
+
+.editor-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.flow-container {
+  flex: 1;
+  position: relative;
+  background: #1a1a2e;
+}
+
+/* ─── 툴바 ──────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  flex-wrap: wrap;
+  z-index: 10;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 28px;
+  background: #475569;
+  margin: 0 8px;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #334155;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  background: #475569;
+  border-color: #64748b;
+}
+
+.toolbar-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar-btn.flash {
+  background: #22c55e;
+  transition: background 0.1s;
+}
+
+.btn-icon {
+  font-size: 14px;
+}
+
+/* ─── 마인드맵 노드 ─────────────────────────────────────────── */
+.mindmap-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  max-width: 240px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border-style: solid;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+}
+
+.mindmap-node:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.mindmap-node.selected {
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.mindmap-node.root {
+  min-width: 160px;
+  border-radius: 14px;
+  font-weight: 700;
+}
+
+.mindmap-node-text {
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+}
+
+.mindmap-node-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: center;
+  font-family: inherit;
+  font-weight: inherit;
+  line-height: 1.4;
+}
+
+.mindmap-handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* 접기/펼치기 버튼 */
+.collapse-btn {
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #64748b;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.collapse-btn:hover {
+  background: #475569;
+  border-color: #94a3b8;
+}
+
+/* ─── 속성 패널 (우측) ──────────────────────────────────────── */
+.properties-panel {
+  width: 280px;
+  min-width: 280px;
+  background: #1e293b;
+  border-left: 1px solid #334155;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-header {
+  font-size: 15px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.panel-empty {
+  color: #64748b;
+  font-size: 14px;
+  text-align: center;
+  padding: 32px 0;
+  line-height: 1.8;
+}
+
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.panel-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.panel-text-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #0f172a;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #e2e8f0;
+  word-break: break-all;
+}
+
+.panel-btn-small {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.panel-btn-small:hover {
+  opacity: 1;
+}
+
+.color-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-input-row input[type="color"] {
+  width: 36px;
+  height: 36px;
+  padding: 2px;
+  border: 2px solid #475569;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.color-value {
+  font-size: 13px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.panel-section input[type="range"] {
+  width: 100%;
+  accent-color: #4A90D9;
+}
+
+.panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.panel-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.add-btn {
+  background: #2563eb;
+  color: #fff;
+  border-color: #3b82f6;
+}
+
+.add-btn:hover {
+  background: #3b82f6;
+}
+
+.delete-btn {
+  background: #dc2626;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.delete-btn:hover {
+  background: #ef4444;
+}
+
+/* 단축키 안내 */
+.panel-shortcuts {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #334155;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 3px 0;
+}
+
+.shortcut-item kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #e2e8f0;
+  min-width: 30px;
+  text-align: center;
+}
+
+/* ─── React Flow 오버라이드 ──────────────────────────────────── */
+.react-flow__background {
+  background: #1a1a2e !important;
+}
+
+.react-flow__minimap {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.react-flow__controls-button {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+  fill: #e2e8f0 !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #334155 !important;
+}
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+/* ─── 스크롤바 ──────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
