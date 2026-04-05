@@ -24,7 +24,6 @@ import click
 from assembly_client import AssemblyClient, AssemblyAPIError, Bill
 from config import (
     ASSEMBLY_API_KEY,
-    ANTHROPIC_API_KEY,
     DEFAULT_AGE,
     DEFAULT_MAX_BILLS,
 )
@@ -146,8 +145,9 @@ def main(
     중소기업 규제영향 분석 시스템
 
     환경변수:
-      ASSEMBLY_API_KEY   국회 OpenAPI 인증키
-      ANTHROPIC_API_KEY  Anthropic Claude API 키
+      ASSEMBLY_API_KEY   국회 OpenAPI 인증키 (필수)
+
+    Claude 분석은 현재 로그인된 Claude Code 계정을 사용합니다.
     """
     click.echo("=" * 60)
     click.echo("중소기업 규제영향 분석 시스템")
@@ -160,14 +160,6 @@ def main(
             "  .env 파일에 ASSEMBLY_API_KEY=<인증키>를 추가하거나\n"
             "  환경변수로 설정하십시오.\n"
             "  (--dry-run 옵션으로 샘플 데이터 테스트 가능)",
-            fg="red",
-        )
-        sys.exit(1)
-
-    if not ANTHROPIC_API_KEY:
-        click.secho(
-            "[오류] ANTHROPIC_API_KEY가 설정되지 않았습니다.\n"
-            "  .env 파일에 ANTHROPIC_API_KEY=<API키>를 추가하십시오.",
             fg="red",
         )
         sys.exit(1)
@@ -208,7 +200,7 @@ def main(
     click.echo(f"\n  ✓ 분석 대상 법안: {len(bills)}건")
 
     # ── Claude 분석 ───────────────────────────────────────────
-    click.echo(f"\n[2단계] Claude {_model_short()} 규제영향 분석")
+    click.echo("\n[2단계] Claude (현재 계정) 규제영향 분석")
     click.echo("  (법안 당 약 15~30초 소요)\n")
 
     analyzer = SMEAnalyzer()
@@ -230,11 +222,6 @@ def main(
 
     # ── 콘솔 요약 ─────────────────────────────────────────────
     print_summary(results)
-
-
-def _model_short() -> str:
-    from config import CLAUDE_MODEL
-    return CLAUDE_MODEL
 
 
 if __name__ == "__main__":

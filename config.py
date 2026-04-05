@@ -11,7 +11,6 @@ load_dotenv()
 
 # ─── API 설정 ────────────────────────────────────────────────
 ASSEMBLY_API_KEY = os.getenv("ASSEMBLY_API_KEY", "")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # 국회 OpenAPI 기본 URL
 ASSEMBLY_BASE_URL = "https://open.assembly.go.kr/portal/openapi"
@@ -24,9 +23,6 @@ DEFAULT_AGE = 22
 
 # 페이지당 최대 결과 수
 PAGE_SIZE = 100
-
-# Claude 모델
-CLAUDE_MODEL = "claude-opus-4-6"
 
 # ─── 중소기업 관련 키워드 ─────────────────────────────────────
 # 이 키워드가 법률안 제목·소관위원회에 포함될 경우 SME 관련 법안으로 1차 필터링

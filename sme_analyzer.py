@@ -1,7 +1,7 @@
 """
-중소기업 규제영향 분석기 (Claude API 기반)
+중소기업 규제영향 분석기 (Claude Agent SDK 기반)
 
-Claude Opus 4.6 모델과 adaptive thinking을 사용해
+별도 API 키 없이 현재 로그인된 Claude Code 계정으로
 의원발의 법률안의 중소기업 규제영향을 심층 분석합니다.
 
 분석 항목:
@@ -18,12 +18,14 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-import anthropic
+import anyio
+from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
 
 from assembly_client import Bill
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, IMPACT_CATEGORIES
+from config import IMPACT_CATEGORIES
 
-# 분석 결과 JSON 스키마
+# ─── 분석 결과 JSON 스키마 ────────────────────────────────────
+
 ANALYSIS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -133,8 +135,10 @@ SYSTEM_PROMPT = """당신은 중소기업 규제영향 분석 전문가입니다
 4. 불확실한 부분은 명확히 표시하고 신뢰도를 평가합니다.
 5. 규제 부담뿐 아니라 지원·기회 요인도 균형있게 분석합니다.
 
-반드시 요청된 JSON 스키마 형식으로만 응답하십시오."""
+반드시 유효한 JSON만 반환하십시오. 설명 텍스트나 마크다운 블록 없이 JSON 객체만 출력하십시오."""
 
+
+# ─── 데이터 클래스 ────────────────────────────────────────────
 
 @dataclass
 class AnalysisResult:
@@ -188,21 +192,17 @@ class AnalysisResult:
         }
 
 
+# ─── 분석기 ──────────────────────────────────────────────────
+
 class SMEAnalyzer:
     """
     중소기업 규제영향 분석기
 
-    Parameters
-    ----------
-    api_key : str
-        Anthropic API 키
+    Claude Agent SDK를 사용해 현재 로그인된 Claude Code 계정으로
+    분석을 수행합니다. 별도 API 키가 필요하지 않습니다.
     """
 
-    def __init__(self, api_key: str = "") -> None:
-        self.client = anthropic.Anthropic(api_key=api_key or ANTHROPIC_API_KEY)
-
-    def _build_analysis_prompt(self, bill: Bill) -> str:
-        """법안 분석 프롬프트 생성"""
+    def _build_prompt(self, bill: Bill) -> str:
         detail_url = (
             f"\n  원문 링크: {bill.detail_link}" if bill.detail_link else ""
         )
@@ -231,64 +231,47 @@ JSON 스키마:
 
 반드시 유효한 JSON만 반환하십시오. 다른 설명 텍스트는 포함하지 마십시오."""
 
+    async def _analyze_async(self, bill: Bill) -> str:
+        """비동기 방식으로 Claude Agent SDK 호출"""
+        result_text = ""
+        async for message in query(
+            prompt=self._build_prompt(bill),
+            options=ClaudeAgentOptions(
+                system_prompt=SYSTEM_PROMPT,
+                max_turns=1,          # 단일 응답으로 충분
+            ),
+        ):
+            if isinstance(message, ResultMessage):
+                result_text = message.result or ""
+        return result_text
+
     def analyze_bill(self, bill: Bill, verbose: bool = False) -> AnalysisResult:
-        """
-        단일 법안 규제영향 분석
-
-        Parameters
-        ----------
-        bill : Bill
-            분석할 법안
-        verbose : bool
-            스트리밍 출력 여부
-
-        Returns
-        -------
-        AnalysisResult
-        """
+        """단일 법안 규제영향 분석"""
         result = AnalysisResult(bill=bill)
 
         try:
-            prompt = self._build_analysis_prompt(bill)
-
             if verbose:
                 print(f"  분석 중: {bill.bill_name[:50]}...", end=" ", flush=True)
 
-            # 스트리밍으로 응답 수신 (긴 분석에 적합)
-            full_text = ""
-            with self.client.messages.stream(
-                model=CLAUDE_MODEL,
-                max_tokens=4096,
-                thinking={"type": "adaptive"},
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-            ) as stream:
-                for text in stream.text_stream:
-                    full_text += text
+            raw_text = anyio.run(self._analyze_async, bill)
 
             if verbose:
                 print("완료")
 
-            # JSON 파싱
-            # Claude가 ```json ... ``` 블록으로 감쌀 경우 처리
-            cleaned = full_text.strip()
+            # JSON 파싱 (```json ... ``` 블록 처리 포함)
+            cleaned = raw_text.strip()
             if cleaned.startswith("```"):
-                lines = cleaned.split("\n")
-                # 첫 줄(```json)과 마지막 줄(```) 제거
-                lines = [l for l in lines if not l.strip().startswith("```")]
+                lines = [l for l in cleaned.split("\n") if not l.strip().startswith("```")]
                 cleaned = "\n".join(lines)
 
             analysis_data = json.loads(cleaned)
             _populate_result(result, analysis_data)
 
         except json.JSONDecodeError as exc:
-            result.error = f"JSON 파싱 오류: {exc}"
-            result.impact_level = "NONE"
+            result.error = f"JSON 파싱 오류: {exc}\n원문: {raw_text[:200]}"
             result.limitations = "분석 응답을 파싱하는 데 실패했습니다."
-        except anthropic.APIError as exc:
-            result.error = f"Claude API 오류: {exc}"
         except Exception as exc:
-            result.error = f"예상치 못한 오류: {exc}"
+            result.error = f"분석 오류: {exc}"
 
         return result
 
@@ -297,20 +280,7 @@ JSON 스키마:
         bills: list[Bill],
         verbose: bool = True,
     ) -> list[AnalysisResult]:
-        """
-        다수 법안 순차 분석
-
-        Parameters
-        ----------
-        bills : list[Bill]
-            분석할 법안 목록
-        verbose : bool
-            진행 상황 출력 여부
-
-        Returns
-        -------
-        list[AnalysisResult]
-        """
+        """다수 법안 순차 분석"""
         results: list[AnalysisResult] = []
         total = len(bills)
 
@@ -336,7 +306,7 @@ JSON 스키마:
 
 
 def _populate_result(result: AnalysisResult, data: dict[str, Any]) -> None:
-    """API 응답 데이터로 AnalysisResult 채우기"""
+    """파싱된 JSON으로 AnalysisResult 채우기"""
     result.impact_level = data.get("impact_level", "NONE")
     result.impact_summary = data.get("impact_summary", "")
     result.affected_sme_types = data.get("affected_sme_types", [])
