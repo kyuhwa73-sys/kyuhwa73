@@ -18,7 +18,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-import anyio
+import asyncio
+import concurrent.futures
 from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
 
 from assembly_client import Bill
@@ -231,19 +232,32 @@ JSON 스키마:
 
 반드시 유효한 JSON만 반환하십시오. 다른 설명 텍스트는 포함하지 마십시오."""
 
-    async def _analyze_async(self, bill: Bill) -> str:
-        """비동기 방식으로 Claude Agent SDK 호출"""
-        result_text = ""
-        async for message in query(
-            prompt=self._build_prompt(bill),
-            options=ClaudeAgentOptions(
-                system_prompt=SYSTEM_PROMPT,
-                max_turns=1,          # 단일 응답으로 충분
-            ),
-        ):
-            if isinstance(message, ResultMessage):
-                result_text = message.result or ""
-        return result_text
+    @staticmethod
+    def _run_in_thread(prompt: str) -> str:
+        """
+        새 스레드 + 새 이벤트 루프에서 Claude Agent SDK 호출
+
+        연속 호출 시 anyio 이벤트 루프 충돌을 방지하기 위해
+        각 분석을 독립 스레드에서 실행합니다.
+        """
+        async def _call() -> str:
+            result_text = ""
+            async for message in query(
+                prompt=prompt,
+                options=ClaudeAgentOptions(
+                    system_prompt=SYSTEM_PROMPT,
+                    max_turns=1,
+                ),
+            ):
+                if isinstance(message, ResultMessage):
+                    result_text = message.result or ""
+            return result_text
+
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_call())
+        finally:
+            loop.close()
 
     def analyze_bill(self, bill: Bill, verbose: bool = False) -> AnalysisResult:
         """단일 법안 규제영향 분석"""
@@ -253,13 +267,17 @@ JSON 스키마:
             if verbose:
                 print(f"  분석 중: {bill.bill_name[:50]}...", end=" ", flush=True)
 
-            raw_text = anyio.run(self._analyze_async, bill)
+            prompt = self._build_prompt(bill)
+            # 독립 스레드에서 실행해 이벤트 루프 충돌 방지
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(self._run_in_thread, prompt)
+                raw_text = future.result(timeout=120)
 
             if verbose:
                 print("완료")
 
             # JSON 파싱 (```json ... ``` 블록 처리 포함)
-            cleaned = raw_text.strip()
+            cleaned = (raw_text or "").strip()
             if cleaned.startswith("```"):
                 lines = [l for l in cleaned.split("\n") if not l.strip().startswith("```")]
                 cleaned = "\n".join(lines)
@@ -268,7 +286,8 @@ JSON 스키마:
             _populate_result(result, analysis_data)
 
         except json.JSONDecodeError as exc:
-            result.error = f"JSON 파싱 오류: {exc}\n원문: {raw_text[:200]}"
+            snippet = (raw_text or "")[:200]
+            result.error = f"JSON 파싱 오류: {exc}\n원문: {snippet}"
             result.limitations = "분석 응답을 파싱하는 데 실패했습니다."
         except Exception as exc:
             result.error = f"분석 오류: {exc}"
